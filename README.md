@@ -4,46 +4,43 @@
 Used in [data_generator.py](data_generator.py):
 ```
 WITH daily_counts AS (
-     SELECT reg_datetime AS registration_dt,
-            country,
-            COUNT(*) AS registrations_cnt
-     FROM registration_events
-     GROUP BY reg_datetime, country
- ),
- daily_stats AS (
-     SELECT registration_dt,
+    SELECT reg_datetime AS registration_dt,
+           country,
+           COUNT(*) AS registrations_cnt
+    FROM registration_events
+    GROUP BY reg_datetime, country
+),
+rolling_stats AS (
+    SELECT
+        registration_dt,
         country,
         registrations_cnt,
-        AVG(registrations_cnt) OVER (
-            PARTITION BY country
-            ORDER BY registration_dt
-            ROWS BETWEEN :window_size PRECEDING AND CURRENT ROW
-        ) AS moving_avg,
-        sqrt(
-            AVG(registrations_cnt * registrations_cnt) OVER (
-                PARTITION BY country
-                ORDER BY registration_dt
-                ROWS BETWEEN :window_size PRECEDING AND CURRENT ROW
-            ) -
-            (AVG(registrations_cnt) OVER (
-                PARTITION BY country
-                ORDER BY registration_dt
-                ROWS BETWEEN :window_size PRECEDING AND CURRENT ROW
-            ) *
-             AVG(registrations_cnt) OVER (
-                PARTITION BY country
-                ORDER BY registration_dt
-                ROWS BETWEEN :window_size PRECEDING AND CURRENT ROW
-            ))
-        ) AS moving_std
-     FROM daily_counts
- )
- SELECT registration_dt,
+        SUM(registrations_cnt) OVER win                        AS sum_x,
+        SUM(registrations_cnt * registrations_cnt) OVER win    AS sum_x2,
+        COUNT(*) OVER win                                      AS n
+    FROM daily_counts
+    WINDOW win AS (
+        PARTITION BY country
+        ORDER BY registration_dt
+        ROWS BETWEEN :window_size PRECEDING AND CURRENT ROW
+    )
+), 
+daily_stats AS (
+    SELECT
+        registration_dt,
         country,
-        MAX(moving_avg - 3 * moving_std, 0) AS lower_bound,
-        moving_avg + 3 * moving_std AS upper_bound,
-        registrations_cnt
- FROM daily_stats
+        registrations_cnt,
+        (CAST(sum_x AS REAL) / n) AS moving_avg,
+        -- sqrt( (sum((x - mu)^2)) / N )
+        SQRT((sum_x2 - 2 * sum_x * (CAST(sum_x AS REAL) / n) + n * (CAST(sum_x AS REAL) / n) * (CAST(sum_x AS REAL) / n)) / n) AS moving_std
+    FROM rolling_stats
+)
+SELECT registration_dt,
+       country,
+       MAX(moving_avg - 3 * moving_std, 0) AS lower_bound,
+       moving_avg + 3 * moving_std AS upper_bound,
+       registrations_cnt
+FROM daily_stats
 ```
 
 ## db generation
