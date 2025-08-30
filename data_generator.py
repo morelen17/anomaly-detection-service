@@ -10,9 +10,25 @@ from anomaly_detection_service.db_client import SQLiteDBClient
 COUNTRIES: Final = ["UK", "Denmark", "Greece", "Netherlands", "France"]
 
 
+def _generate_normal_ints_with_outliers(
+        n: int,
+        mean: int,
+        stddev: int,
+        min_val: int = 0,
+        outlier_prob: float = 0.5,
+        outlier_factor: float = 3.,
+) -> list[int]:
+    values = []
+    for _ in range(n):
+        new_stddev = stddev * outlier_factor if random.random() < outlier_prob else stddev
+        val = int(round(random.gauss(mean, new_stddev)))
+        val = max(val, min_val)
+        values.append(val)
+    return values
+
+
 def main(
         connection_string: str,
-        number_of_registrations: int,
         first_registration_date: datetime,
         registrations_period_days: int,
         stats_window_size_days: int,
@@ -43,13 +59,21 @@ CREATE TABLE anomaly_thresholds (
         params=(),
     )
 
-    data_to_insert = [
-        (
-            (first_registration_date + timedelta(days=random.randint(0, registrations_period_days - 1))).date().strftime("%Y-%m-%d"),
-            random.choice(COUNTRIES),
-        )
-        for _ in range(number_of_registrations)
+    registration_dates = [
+        first_registration_date + timedelta(days=d)
+        for d in range(registrations_period_days)
     ]
+    data_to_insert = []
+    for country in COUNTRIES:
+        mean = random.randint(50, 1000)
+        stddev = mean // 6
+        registrations_per_day_cnt = _generate_normal_ints_with_outliers(registrations_period_days, mean, stddev)
+        for registration_cnt, cur_date in zip(registrations_per_day_cnt, registration_dates):
+            for _ in range(registration_cnt):
+                data_to_insert.append(
+                    (cur_date.strftime("%Y-%m-%d"), country)
+                )
+
     db_client.execute_many(
         query="INSERT INTO registration_events (reg_datetime, country) VALUES (?, ?)",
         params=data_to_insert,
@@ -112,7 +136,6 @@ INSERT INTO anomaly_thresholds (registration_dt, country, lower_bound, upper_bou
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument("--number_of_registrations", type=int, default=10_000)
     parser.add_argument("--first_registration_date", type=lambda val: datetime.strptime(val, "%Y-%m-%d"), default=datetime(2025, 7, 1))
     parser.add_argument("--registrations_period_days", type=int, default=30)
     parser.add_argument("--stats_window_size_days", type=int, default=7)
@@ -124,7 +147,6 @@ if __name__ == '__main__':
 
     main(
         connection_string=DB_CONNECTION_STRING,
-        number_of_registrations=args.number_of_registrations,
         first_registration_date=args.first_registration_date,
         registrations_period_days=args.registrations_period_days,
         stats_window_size_days=args.stats_window_size_days,
