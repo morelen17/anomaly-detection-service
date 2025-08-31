@@ -28,7 +28,7 @@ class ThreeSigmaAnomalyAlgorithm(BaseAnomalyAlgorithm):
         thresholds_per_country = self._get_thresholds(registration_dt)
         result = {
             country: AnomalyCountryOutput(
-                is_anomaly=not (lower <= cnt <= upper),
+                is_anomaly=not (lower <= cnt <= upper) if lower is not None and upper is not None else False,
                 registrations_cnt=cnt,
             )
             for country, lower, upper, cnt in thresholds_per_country
