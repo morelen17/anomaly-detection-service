@@ -100,7 +100,7 @@ CREATE TABLE anomaly_thresholds (
         WINDOW win AS (
             PARTITION BY country
             ORDER BY registration_dt
-            ROWS BETWEEN :window_size PRECEDING AND CURRENT ROW
+            ROWS BETWEEN :window_size PRECEDING AND 1 PRECEDING
         )
     ), 
     daily_stats AS (
@@ -125,7 +125,7 @@ CREATE TABLE anomaly_thresholds (
 INSERT INTO anomaly_thresholds (registration_dt, country, lower_bound, upper_bound, registrations_cnt)
 {calcs_sql};
 """,
-        params={"window_size": stats_window_size_days - 1},
+        params={"window_size": stats_window_size_days},
     )
 
     db_client.close()

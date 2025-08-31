@@ -22,7 +22,7 @@ rolling_stats AS (
     WINDOW win AS (
         PARTITION BY country
         ORDER BY registration_dt
-        ROWS BETWEEN :window_size PRECEDING AND CURRENT ROW
+        ROWS BETWEEN :window_size PRECEDING AND 1 PRECEDING
     )
 ), 
 daily_stats AS (
