@@ -15,7 +15,7 @@ def _generate_normal_ints_with_outliers(
         mean: int,
         stddev: int,
         min_val: int = 0,
-        outlier_prob: float = 0.5,
+        outlier_prob: float = 0.05,
         outlier_factor: float = 3.,
 ) -> list[int]:
     values = []
